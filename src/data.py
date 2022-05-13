@@ -8,7 +8,7 @@ class Data:
         """initialize the database connection if possible, else data is stored locally"""
         self.scores = {"single": [], "multi": []}
 
-        self.db_string = "mongodb+srv://emanuel:SFBftvL1WZSWgYAH@cluster0.ppsbo.mongodb.net/myFirstDatabase?retryWrites=true&w=majority"
+        self.db_string = "mongodb+srv://emanuel:<secret>@cluster0.ppsbo.mongodb.net/myFirstDatabase?retryWrites=true&w=majority"
         self.db = None
         self.connected = False
         start_new_thread(self.connect_to_db, ())
