@@ -21,11 +21,11 @@ class Sprite:
 
 
 class Player(Sprite):
-    def __init__(self, style=0) -> None:
+    def __init__(self) -> None:
         """initialize player"""
         super().__init__()
         # set sprite attributes
-        self.image_name = f"spaceship{style}"
+        self.image_name = f"spaceship0"
         self.width, self.height = 64, 64
         self.x, self.y = self.gamew // 2 - self.width // 2, self.gameh - 100
         # set player attributes
@@ -33,6 +33,10 @@ class Player(Sprite):
         self.speed = self.gamew / (4000)  # ref 0.2
         self.life = 3
         self.score = 0
+
+    def change_style(self, style: int) -> None:
+        """change player style"""
+        self.image_name = f"spaceship{style}"
 
     def move(self, dt: int) -> None:
         """move player"""
@@ -65,7 +69,7 @@ class Invader(Sprite):
 
     def increase_speed(self) -> None:
         """increase invader speed"""
-        self.speed *= 1.07
+        self.speed *= 1.1
 
     def die(self) -> None:
         """kill invader and make it repop"""

@@ -9,6 +9,7 @@ with contextlib.redirect_stdout(None):
 
 
 # personal modules
+from src.config import get_config, save_config
 from src.objects import *
 from src.engines import *
 from src.data import *
@@ -43,7 +44,6 @@ class Game:
         start_new_thread(self.check_connection, ())
 
         self.last_ip = ""
-        self.player_name = ""
 
     # connection methods
     def check_connection(self) -> None:
@@ -73,10 +73,19 @@ class Game:
     # run and exit methods
     def run(self) -> None:
         """run the game"""
-        self.welcome_screen()
+        self.player_name, self.player_style, self.controls = get_config()
+        if self.player_name is None:
+            self.player_name = ""
+            self.player_style = 0
+            self.controls = CONTROLS
+            self.welcome_screen()
+        else:
+            self.menu()
 
     def exit(self) -> None:
         """exit"""
+        if self.player_name != "":
+            save_config(self.player_name, self.player_style, self.controls)
         self.running = False
         pygame.quit()
         os._exit(0)
@@ -90,12 +99,13 @@ class Game:
                 or isinstance(obj, Text)
                 or isinstance(obj, SideBar)
                 or isinstance(obj, BossHealthBar)
+                or isinstance(obj, Notification)
             ):
                 self.background.image.blit(obj.image, (obj.x, obj.y))
             elif isinstance(obj, dict):
                 image = Image(obj["image_name"])
                 self.background.image.blit(image.image, (obj["x"], obj["y"]))
-            else:
+            elif obj is not None:
                 image = Image(obj.image_name)
                 self.background.image.blit(image.image, (obj.x, obj.y))
 
@@ -120,13 +130,9 @@ class Game:
 
         input_obj = Text("", GREEN)
 
-        cursor_obj = Text("", WHITE)
-
         credits_obj = Text("©EMANUEL", WHITE)
         credits_obj.x = self.width / 2 - credits_obj.width / 2
         credits_obj.y = self.height - credits_obj.height - 10
-
-        input_name = ""
 
         while self.running:
             for event in pygame.event.get():
@@ -135,32 +141,27 @@ class Game:
 
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_RETURN:
-                        if input_name == "":
+                        if self.player_name == "":
                             self.error_screen("PLEASE ENTER A NAME", "welcome")
                         else:
-                            self.player_name = input_name
                             self.menu()
 
                     elif event.key == pygame.K_BACKSPACE:
-                        input_name = input_name[:-1]
+                        self.player_name = self.player_name[:-1]
 
-                    elif event.unicode.isalnum() and len(input_name) < 16:
-                        input_name += event.unicode.upper()
+                    elif event.unicode.isalnum() and len(self.player_name) < 16:
+                        self.player_name += event.unicode.upper()
 
             # updates
             dt = self.clock.tick(60)
 
             self.background.update(dt, playing=False)
-            input_obj.change_text(input_name)
+            input_obj.change_text(self.player_name + ("_" if time() % 1 > 0.5 else ""))
             input_obj.x = self.width / 2 - input_obj.width / 2
             input_obj.y = self.height * 0.75
 
-            cursor_obj.change_text("_" if time() % 1 > 0.5 else "")
-            cursor_obj.x = input_obj.x + input_obj.width + 5
-            cursor_obj.y = input_obj.y
-
             # display
-            self.draw_game(title_obj, text_obj, input_obj, cursor_obj, credits_obj)
+            self.draw_game(title_obj, text_obj, input_obj, credits_obj)
 
             pygame.display.update()
 
@@ -172,19 +173,23 @@ class Game:
 
         single_obj = Text("SINGLE PLAYER", WHITE)
         single_obj.x = self.width / 2 - single_obj.width / 2
-        single_obj.y = self.height * 0.75 - single_obj.height * 3.5
+        single_obj.y = self.height * 0.75 - single_obj.height * 4
 
         local_obj = Text("LOCAL MULTI", WHITE)
         local_obj.x = self.width / 2 - local_obj.width / 2
-        local_obj.y = self.height * 0.75 - local_obj.height * 2
+        local_obj.y = self.height * 0.75 - local_obj.height * 2.5
 
         online_obj = Text("ONLINE MULTI", WHITE)
         online_obj.x = self.width / 2 - online_obj.width / 2
-        online_obj.y = self.height * 0.75 - online_obj.height / 2
+        online_obj.y = self.height * 0.75 - online_obj.height
 
         leaderboard_obj = Text("LEADERBOARD", WHITE)
         leaderboard_obj.x = self.width / 2 - leaderboard_obj.width / 2
-        leaderboard_obj.y = self.height * 0.75 + leaderboard_obj.height
+        leaderboard_obj.y = self.height * 0.75 + leaderboard_obj.height / 2
+
+        settings_obj = Text("SETTINGS", WHITE)
+        settings_obj.x = self.width / 2 - settings_obj.width / 2
+        settings_obj.y = self.height * 0.75 + settings_obj.height * 2
 
         connection_obj = Text("CONNECTED:", WHITE)
         connection_obj.x = 10
@@ -207,13 +212,18 @@ class Game:
                     self.exit()
 
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_UP and selected > 0:
-                        selected -= 1
-                    elif event.key == pygame.K_DOWN and (
-                        (selected < 1) or (self.online and selected < 3)
-                    ):
-                        selected += 1
-                    elif event.key == pygame.K_RETURN:
+                    if event.key == self.controls["up"] and selected > 0:
+                        if not self.online and selected == 4:
+                            selected = 1
+                        else:
+                            selected -= 1
+                    elif event.key == self.controls["down"] and selected < 4:
+                        if selected < 1 or self.online:
+                            selected += 1
+                        elif selected == 1 and not self.online:
+                            selected = 4
+
+                    elif event.key == self.controls["enter"]:
                         if selected == 0:
                             self.single_player()
                         elif selected == 1:
@@ -222,9 +232,11 @@ class Game:
                             self.host_or_join()
                         elif selected == 3:
                             self.leaderboard()
+                        elif selected == 4:
+                            self.settings()
 
             # check
-            if not self.online and selected > 1:
+            if not self.online and 1 < selected < 4:
                 selected = 0
 
             # updates
@@ -240,6 +252,7 @@ class Game:
             leaderboard_obj.change_color(
                 INACTIVE_GREY if not self.online else RED if selected == 3 else WHITE
             )
+            settings_obj.change_color(RED if selected == 4 else WHITE)
 
             if selected == 0:
                 arrow.x = single_obj.x - arrow.width - 15
@@ -253,6 +266,9 @@ class Game:
             elif selected == 3 and self.online:
                 arrow.x = leaderboard_obj.x - arrow.width - 15
                 arrow.y = leaderboard_obj.y + 4
+            elif selected == 4:
+                arrow.x = settings_obj.x - arrow.width - 15
+                arrow.y = settings_obj.y + 4
 
             connection_v_obj = Text("YES", GREEN) if self.online else Text("NO", RED)
             connection_v_obj.x = connection_obj.x + connection_obj.width + 5
@@ -265,6 +281,7 @@ class Game:
                 local_obj,
                 online_obj,
                 leaderboard_obj,
+                settings_obj,
                 arrow,
                 connection_obj,
                 connection_v_obj,
@@ -277,9 +294,19 @@ class Game:
         self, score1: int, score2: int, original_mode: str, name1=None, name2=None
     ) -> None:
         """game over screen"""
-        # save score if it is the highest
+        # save score
         if original_mode == "single":
-            self.data.save_score(self.player_name, score1)
+            name = self.player_name
+            score = score1
+            mode = "single"
+        elif original_mode in ("local_multi", "online_multi"):
+            if name1 == name2 == None:
+                name = self.player_name
+            else:
+                f"{name1[:4]}. & {name2[:4]}."
+            score = score1 + score2
+            mode = "multi"
+        self.data.save_score(name, score, mode)
 
         over_obj = Text("GAME OVER !!!", RED)
         over_obj.x = self.width / 2 - over_obj.width / 2
@@ -299,7 +326,7 @@ class Game:
         score2_obj.x = self.width / 2 - score2_obj.width / 2
         score2_obj.y = self.height / 4 + score2_obj.height
 
-        spaceship = Image(f"spaceship{0 if score1 >= score2 else 1}")
+        spaceship = Image(f"spaceship{self.player_style}")
         spaceship.x = self.width / 2 - spaceship.width / 2
         spaceship.y = self.height / 2 - spaceship.height / 2 - 20
 
@@ -330,11 +357,11 @@ class Game:
                     self.exit()
 
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_UP and selected > 0:
+                    if event.key == self.controls["up"] and selected > 0:
                         selected -= 1
-                    if event.key == pygame.K_DOWN and selected < 2:
+                    if event.key == self.controls["down"] and selected < 2:
                         selected += 1
-                    if event.key == pygame.K_RETURN:
+                    if event.key == self.controls["enter"]:
                         if selected == 0:
                             if original_mode == "single":
                                 self.single_player()
@@ -388,8 +415,9 @@ class Game:
     def single_player(self) -> None:
         """single player game mode"""
         engine = SingleEngine()
+        engine.player.change_style(self.player_style)
 
-        highscore = self.data.get_high_score()
+        highscore = self.data.get_high_score("single")
 
         while self.running:
             # get sprites
@@ -405,6 +433,7 @@ class Game:
 
             # events
             if player.life == 0:
+                self.play_sounds("explosion")
                 self.game_over(
                     score1=player.score,
                     score2=highscore,
@@ -417,17 +446,23 @@ class Game:
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         self.menu()
-                    elif event.key == pygame.K_LEFT:
+                    elif event.key == self.controls["left"]:
                         engine.change_direction("left")
-                    elif event.key == pygame.K_RIGHT:
+                    elif event.key == self.controls["right"]:
                         engine.change_direction("right")
-                    elif event.key == pygame.K_UP or event.key == pygame.K_SPACE:
+                    elif event.key == self.controls["shoot"]:
                         engine.shoot_laser()
 
                 elif event.type == pygame.KEYUP:
-                    if event.key == pygame.K_LEFT and player.direction == "left":
+                    if (
+                        event.key == self.controls["left"]
+                        and player.direction == "left"
+                    ):
                         engine.change_direction("")
-                    elif event.key == pygame.K_RIGHT and player.direction == "right":
+                    elif (
+                        event.key == self.controls["right"]
+                        and player.direction == "right"
+                    ):
                         engine.change_direction("")
 
             # updates
@@ -460,6 +495,9 @@ class Game:
     def local_multi_player(self) -> None:
         """local multiplayer game mode, the two players play on the same window"""
         engine = MultiEngine()
+        engine.players[1].change_style(1)
+
+        highscore = self.data.get_high_score("multi")
 
         while self.running:
             # get sprites
@@ -473,8 +511,11 @@ class Game:
             explosions = engine.explosions
             sounds = engine.get_sounds(0)
 
+            highscore = max(highscore, player1.score + player2.score)
+
             # events
             if player1.life == 0:
+                self.play_sounds("explosion")
                 self.game_over(
                     score1=player1.score,
                     score2=player2.score,
@@ -520,6 +561,7 @@ class Game:
             self.sidebar.update(
                 life=player1.life,
                 score1=player1.score,
+                highscore=highscore,
                 score2=player2.score,
             )
             self.bosshealthbar.update(boss)
@@ -552,6 +594,8 @@ class Game:
         playerId = self.client.playerId
         otherId = 1 if playerId == 0 else 0
 
+        highscore = self.data.get_high_score("multi")
+
         request = "get|"
 
         while self.running:
@@ -573,11 +617,14 @@ class Game:
                 self.client.disconnect()
                 self.error_screen("CONNECTION LOST", "menu")
 
+            highscore = max(highscore, player["score"] + other["score"])
+
             # re-initialize request
             request = "get|"
 
             # events
             if player["life"] == 0 or other["life"] == 0:
+                self.play_sounds("explosion")
                 self.client.disconnect()
                 self.game_over(
                     score1=player["score"] if playerId == 0 else other["score"],
@@ -598,17 +645,23 @@ class Game:
                             self.server.close()
                         self.client.disconnect()
                         self.menu()
-                    elif event.key == pygame.K_LEFT:
+                    elif event.key == self.controls["left"]:
                         request += "direction:left|"
-                    elif event.key == pygame.K_RIGHT:
+                    elif event.key == self.controls["right"]:
                         request += "direction:right|"
-                    elif event.key == pygame.K_SPACE:
+                    elif event.key == self.controls["shoot"]:
                         request += "shoot|"
 
                 elif event.type == pygame.KEYUP:
-                    if event.key == pygame.K_LEFT and player["direction"] == "left":
+                    if (
+                        event.key == self.controls["left"]
+                        and player["direction"] == "left"
+                    ):
                         request += "direction:|"
-                    elif event.key == pygame.K_RIGHT and player["direction"] == "right":
+                    elif (
+                        event.key == self.controls["right"]
+                        and player["direction"] == "right"
+                    ):
                         request += "direction:|"
 
             # updates
@@ -618,6 +671,7 @@ class Game:
             self.sidebar.update(
                 player["life"] if playerId == 0 else other["life"],
                 score1=player["score"] if playerId == 0 else other["score"],
+                highscore=highscore,
                 score2=other["score"] if playerId == 0 else player["score"],
                 name1=name1,
                 name2=name2,
@@ -644,9 +698,13 @@ class Game:
 
     def leaderboard(self) -> None:
         """leaderboard screen, show off the 10 best scores"""
-        leaderboard_obj = Text("LEADERBOARD", RED)
-        leaderboard_obj.x = self.width / 2 - leaderboard_obj.width / 2
-        leaderboard_obj.y = self.height / 10
+        single_obj = Text("SINGLE", BLUE)
+        single_obj.x = self.width / 4 - single_obj.width / 2
+        single_obj.y = self.height / 10
+
+        multi_obj = Text("MULTI", BLUE)
+        multi_obj.x = self.width * 0.75 - multi_obj.width / 2
+        multi_obj.y = self.height / 10
 
         ok_obj = Text("PRESS ANY KEY TO RETURN", WHITE)
         ok_obj.x = self.width / 2 - ok_obj.width / 2
@@ -670,26 +728,241 @@ class Game:
 
             self.background.update(dt)
 
-            score_objs = []
+            # get single scores
+            single_score_objs = []
             for i in range(10):
-                if i < len(self.data.scores):
+                if i < len(self.data.scores["single"]):
                     obj = Text(
-                        f"{i + 1}. {self.data.scores[i]['name']} - {self.data.scores[i]['score']}",
+                        f"{i + 1}. {self.data.scores['single'][i]['name']} - {self.data.scores['single'][i]['score']}",
                         WHITE,
                     )
                 else:
                     obj = Text(f"{i + 1}. -----", INACTIVE_GREY)
-                obj.x = self.width / 2 - obj.width / 2
+                obj.x = self.width / 4 - obj.width / 2
                 obj.y = self.height / 2 - obj.height / 2 + ((i - 5) * obj.height)
 
-                score_objs.append(obj)
+                single_score_objs.append(obj)
+
+            # get multi scores
+            multi_score_objs = []
+            for i in range(10):
+                if i < len(self.data.scores["multi"]):
+                    obj = Text(
+                        f"{i + 1}. {self.data.scores['multi'][i]['name']} - {self.data.scores['multi'][i]['score']}",
+                        WHITE,
+                    )
+                else:
+                    obj = Text(f"{i + 1}. -----", INACTIVE_GREY)
+                obj.x = self.width * 0.75 - obj.width / 2
+                obj.y = self.height / 2 - obj.height / 2 + ((i - 5) * obj.height)
+
+                multi_score_objs.append(obj)
 
             # display
-            self.draw_game(leaderboard_obj, *score_objs, ok_obj, credits_obj)
+            self.draw_game(
+                single_obj,
+                multi_obj,
+                *single_score_objs,
+                *multi_score_objs,
+                ok_obj,
+                credits_obj,
+            )
 
             pygame.display.update()
 
-    # online mode methods
+    def settings(self) -> None:
+        """add the possibility to change name, style and controls"""
+        # align objects from the right
+        settings_obj = Text("SETTINGS", BLUE)
+        settings_obj.x = self.width / 2 - settings_obj.width / 2
+        settings_obj.y = self.height / 10
+
+        name_obj = Text("NAME:", WHITE)
+        name_obj.x = self.width / 2 - name_obj.width
+        name_obj.y = self.height / 10 * 2.25
+
+        name_input = Text(self.player_name, WHITE)
+        name_input.x = self.width / 2 + 25
+        name_input.y = self.height / 10 * 2.25
+
+        style_obj = Text("STYLE:", WHITE)
+        style_obj.x = self.width / 2 - style_obj.width
+        style_obj.y = self.height / 10 * 3.10
+
+        shoot_obj = Text("SHOOT:", WHITE)
+        shoot_obj.x = self.width / 2 - shoot_obj.width
+        shoot_obj.y = self.height / 10 * 3.95
+
+        shoot_key = Text("", WHITE)
+        shoot_key.x = self.width / 2 + 25
+        shoot_key.y = self.height / 10 * 3.95
+
+        left_obj = Text("LEFT:", WHITE)
+        left_obj.x = self.width / 2 - left_obj.width
+        left_obj.y = self.height / 10 * 4.80
+
+        left_key = Text("", WHITE)
+        left_key.x = self.width / 2 + 25
+        left_key.y = self.height / 10 * 4.80
+
+        right_obj = Text("RIGHT:", WHITE)
+        right_obj.x = self.width / 2 - right_obj.width
+        right_obj.y = self.height / 10 * 5.65
+
+        right_key = Text("", WHITE)
+        right_key.x = self.width / 2 + 25
+        right_key.y = self.height / 10 * 5.65
+
+        up_obj = Text("UP:", WHITE)
+        up_obj.x = self.width / 2 - up_obj.width
+        up_obj.y = self.height / 10 * 6.50
+
+        up_key = Text("", WHITE)
+        up_key.x = self.width / 2 + 25
+        up_key.y = self.height / 10 * 6.50
+
+        down_obj = Text("DOWN:", WHITE)
+        down_obj.x = self.width / 2 - down_obj.width
+        down_obj.y = self.height / 10 * 7.35
+
+        down_key = Text("", WHITE)
+        down_key.x = self.width / 2 + 25
+        down_key.y = self.height / 10 * 7.35
+
+        escape_obj = Text("PRESS ENTER TO CHANGE AND ESCAPE TO RETURN", WHITE)
+        escape_obj.x = self.width / 2 - escape_obj.width / 2
+        escape_obj.y = self.height / 10 * 8.5
+
+        notification_obj = Notification("PRESS A KEY!")
+
+        arrow = Image("arrow")
+
+        selected = 0
+        changing = False
+
+        while self.running:
+            # events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.exit()
+
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.menu()
+
+                    elif not changing:
+                        if event.key == self.controls["enter"] and selected != 1:
+                            changing = True
+                        elif event.key == self.controls["up"] and selected > 0:
+                            selected -= 1
+                        elif event.key == self.controls["down"] and selected < 6:
+                            selected += 1
+                        elif selected == 1:
+                            if event.key == self.controls["left"]:
+                                self.player_style = (self.player_style - 1) % 6
+                            elif event.key == self.controls["right"]:
+                                self.player_style = (self.player_style + 1) % 6
+
+                    elif changing:
+                        if selected == 0:
+                            if (
+                                event.key == self.controls["enter"]
+                                and self.player_name != ""
+                            ):
+                                changing = False
+                            elif event.key == pygame.K_BACKSPACE:
+                                self.player_name = self.player_name[:-1]
+                            elif event.unicode.isalnum() and len(self.player_name) < 16:
+                                self.player_name += event.unicode.upper()
+
+                        elif event.key not in self.controls.values():
+                            if selected == 2:
+                                self.controls["shoot"] = event.key
+                            elif selected == 3:
+                                self.controls["left"] = event.key
+                            elif selected == 4:
+                                self.controls["right"] = event.key
+                            elif selected == 5:
+                                self.controls["up"] = event.key
+                            elif selected == 6:
+                                self.controls["down"] = event.key
+                            changing = False
+
+            # updates
+            dt = self.clock.tick(60)
+
+            self.background.update(dt)
+
+            style_example = Image(f"spaceship{self.player_style}")
+            style_example.x = self.width / 2 + 25
+            style_example.y = self.height / 10 * 3.10 - 13
+
+            name_input.change_text(
+                self.player_name
+                + ("_" if changing and selected == 0 and time() % 1 > 0.5 else "")
+            )
+            name_input.change_color(GREEN if changing and selected == 0 else WHITE)
+            shoot_key.change_text(pygame.key.name(self.controls["shoot"]).upper())
+            left_key.change_text(pygame.key.name(self.controls["left"]).upper())
+            right_key.change_text(pygame.key.name(self.controls["right"]).upper())
+            up_key.change_text(pygame.key.name(self.controls["up"]).upper())
+            down_key.change_text(pygame.key.name(self.controls["down"]).upper())
+
+            name_obj.change_color(RED if selected == 0 else WHITE)
+            style_obj.change_color(RED if selected == 1 else WHITE)
+            shoot_obj.change_color(RED if selected == 2 else WHITE)
+            left_obj.change_color(RED if selected == 3 else WHITE)
+            right_obj.change_color(RED if selected == 4 else WHITE)
+            up_obj.change_color(RED if selected == 5 else WHITE)
+            down_obj.change_color(RED if selected == 6 else WHITE)
+
+            if selected == 0:
+                arrow.x = name_obj.x - arrow.width - 15
+                arrow.y = name_obj.y + 4
+            elif selected == 1:
+                arrow.x = style_obj.x - arrow.width - 15
+                arrow.y = style_obj.y + 4
+            elif selected == 2:
+                arrow.x = shoot_obj.x - arrow.width - 15
+                arrow.y = shoot_obj.y + 4
+            elif selected == 3:
+                arrow.x = left_obj.x - arrow.width - 15
+                arrow.y = left_obj.y + 4
+            elif selected == 4:
+                arrow.x = right_obj.x - arrow.width - 15
+                arrow.y = right_obj.y + 4
+            elif selected == 5:
+                arrow.x = up_obj.x - arrow.width - 15
+                arrow.y = up_obj.y + 4
+            elif selected == 6:
+                arrow.x = down_obj.x - arrow.width - 15
+                arrow.y = down_obj.y + 4
+
+            # display
+            self.draw_game(
+                settings_obj,
+                name_obj,
+                name_input,
+                style_obj,
+                style_example,
+                shoot_obj,
+                shoot_key,
+                left_obj,
+                left_key,
+                right_obj,
+                right_key,
+                up_obj,
+                up_key,
+                down_obj,
+                down_key,
+                escape_obj,
+                arrow,
+                notification_obj if changing and selected > 1 else None,
+            )
+
+            pygame.display.update()
+
+    # online mode methods/screens
     def host_or_join(self) -> None:
         """choose between hosting or joining an online game"""
         host_obj = Text("HOST GAME", WHITE)
@@ -756,7 +1029,7 @@ class Game:
                 self.error_screen("CONNECTION UNAVAILABLE", "menu")
 
         # connect client
-        self.client.connect(self.server.ip, self.player_name)
+        self.client.connect(self.server.ip, self.player_name, self.player_style)
         # load game
         self.online_multi_player()
 
@@ -821,7 +1094,7 @@ class Game:
                         connecting_since = time()
                         start_new_thread(
                             self.client.connect,
-                            (input_ip, self.player_name),
+                            (input_ip, self.player_name, self.player_style),
                         )
 
             # updates
@@ -959,6 +1232,8 @@ class Game:
                         self.local_multi_player()
                     elif redirect == "online_multi":
                         self.host_or_join()
+                    elif redirect == "settings":
+                        self.settings()
 
             # updates
             dt = self.clock.tick(60)

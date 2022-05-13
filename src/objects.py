@@ -212,3 +212,22 @@ class Sound:
         channel = self.mixer.find_channel()
         channel.set_volume(0.2)
         channel.play(self.mixer.Sound(sound_path))
+
+
+class Notification:
+    def __init__(self, text: str) -> None:
+        """initialize the notification"""
+        self.text = Text(text, BLACK)
+
+        self.image = pygame.Surface((WIDTH / 2, HEIGHT / 4))
+        self.width, self.height = self.image.get_size()
+        self.x, self.y = WIDTH / 2 - self.width / 2, HEIGHT / 2 - self.height / 2
+        
+        self.image.fill(WHITE)
+        self.image.blit(
+            self.text.image,
+            (
+                self.width / 2 - self.text.width / 2,
+                self.height / 2 - self.text.height / 2,
+            ),
+        )

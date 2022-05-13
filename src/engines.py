@@ -62,7 +62,7 @@ class SingleEngine:
         if self.boss.alive:
             self.add_sound("bomb")
             self.bombs.append(Bomb(self.boss))
-            Timer(5, self.shoot_bomb).start()
+            Timer(4, self.shoot_bomb).start()
 
     def check_invader_collisions(self) -> None:
         """check if an invader collides with the player, crashes, or dies"""
@@ -152,13 +152,13 @@ class SingleEngine:
             self.boss_goal += 200
             self.boss.appear()
             self.add_sound("boss")
-            Timer(5, self.shoot_bomb).start()
+            Timer(4, self.shoot_bomb).start()
 
     def add_sound(self, sound: str) -> None:
         """add a sound to the sounds list"""
         self.sounds.append(sound)
 
-    def get_sounds(self) -> list[str]:
+    def get_sounds(self) -> list:
         """return the sounds list"""
         sounds = self.sounds
         self.sounds = []
@@ -171,9 +171,9 @@ class MultiEngine:
         self.gamew, self.gameh = GAME_WIDTH, GAME_HEIGHT
 
         # sprites
-        self.players = [Player(0), Player(1)]
+        self.players = [Player(), Player()]
         self.lasers = [[Laser(self.players[0])], [Laser(self.players[1])]]
-        self.invaders = [Invader() for i in range(N_INVADERS * 2)]
+        self.invaders = [Invader() for i in range(int(N_INVADERS * 2.5))]
         self.boss = Boss()
         self.bombs = []  # type: list[Bomb]
         self.explosions = []  # type: list[Explosion]
@@ -231,7 +231,7 @@ class MultiEngine:
         if self.boss.alive:
             self.add_sound("bomb")
             self.bombs.append(Bomb(self.boss))
-            Timer(5, self.shoot_bomb).start()
+            Timer(4, self.shoot_bomb).start()
 
     def check_invader_collisions(self) -> None:
         """check if an invader collides with the players or crashes"""
@@ -326,7 +326,7 @@ class MultiEngine:
             self.boss_goal += 300
             self.boss.appear()
             self.add_sound("boss")
-            Timer(5, self.shoot_bomb).start()
+            Timer(4, self.shoot_bomb).start()
 
     def add_sound(self, sound: str) -> None:
         """add a sound to the sounds list"""
@@ -393,7 +393,7 @@ class MultiEngine:
             for explosion in self.explosions
         ]
 
-    def get_sounds(self, playerId: int) -> list[str]:
+    def get_sounds(self, playerId: int) -> list:
         """get the sounds data of the player"""
         sounds = self.sounds[playerId]
         self.sounds[playerId] = []

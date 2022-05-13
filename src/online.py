@@ -104,8 +104,9 @@ class Server:
         # send id to client
         conn.send(str.encode(str(playerId)))
         # receive name from client
-        name = conn.recv(1024).decode()
+        name, style = conn.recv(1024).decode().split("|")
         self.games[gameId].player_names[playerId] = name
+        self.games[gameId].players[playerId].change_style(style)
         # send game data to client every frame
         while self.running:
             try:
@@ -164,7 +165,7 @@ class Client:
 
         self.cache = None
 
-    def connect(self, ip: str, name: str) -> None:
+    def connect(self, ip: str, name: str, style: int) -> None:
         """connect to the server and send the name"""
         try:
             # create a socket
@@ -176,7 +177,7 @@ class Client:
             self.socket.connect((self.ip, self.port))
             # if we receive an id and we can send a name, we are connected
             self.playerId = int(self.socket.recv(16).decode())
-            self.socket.send(str.encode(name))
+            self.socket.send(str.encode(f"{name}|{style}"))
             self.connected = True
         except:
             pass
