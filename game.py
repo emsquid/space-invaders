@@ -9,7 +9,7 @@ with contextlib.redirect_stdout(None):
 
 
 # personal modules
-from src.config import get_config, save_config
+from src.config import *
 from src.objects import *
 from src.engines import *
 from src.data import *
@@ -39,6 +39,7 @@ class Game:
         self.server = Server()
         self.client = Client()
         self.data = Data()
+        self.config = Config()
 
         self.online = False
         start_new_thread(self.check_connection, ())
@@ -73,19 +74,14 @@ class Game:
     # run and exit methods
     def run(self) -> None:
         """run the game"""
-        self.player_name, self.player_style, self.controls = get_config()
-        if self.player_name is None:
-            self.player_name = ""
-            self.player_style = 0
-            self.controls = CONTROLS
-            self.welcome_screen()
-        else:
+        if self.config.get():
             self.menu()
+        else:
+            self.welcome_screen()
 
     def exit(self) -> None:
         """exit"""
-        if self.player_name != "":
-            save_config(self.player_name, self.player_style, self.controls)
+        self.config.save()
         self.running = False
         pygame.quit()
         os._exit(0)
@@ -141,22 +137,22 @@ class Game:
 
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_RETURN:
-                        if self.player_name == "":
+                        if self.config.name == "":
                             self.error_screen("PLEASE ENTER A NAME", "welcome")
                         else:
                             self.menu()
 
                     elif event.key == pygame.K_BACKSPACE:
-                        self.player_name = self.player_name[:-1]
+                        self.config.name = self.config.name[:-1]
 
-                    elif event.unicode.isalnum() and len(self.player_name) < 16:
-                        self.player_name += event.unicode.upper()
+                    elif event.unicode.isalnum() and len(self.config.name) < 16:
+                        self.config.name += event.unicode.upper()
 
             # updates
             dt = self.clock.tick(60)
 
             self.background.update(dt, playing=False)
-            input_obj.change_text(self.player_name + ("_" if time() % 1 > 0.5 else ""))
+            input_obj.change_text(self.config.name + ("_" if time() % 1 > 0.5 else ""))
             input_obj.x = self.width / 2 - input_obj.width / 2
             input_obj.y = self.height * 0.75
 
@@ -212,18 +208,18 @@ class Game:
                     self.exit()
 
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == self.controls["up"] and selected > 0:
+                    if event.key == self.config.controls["up"] and selected > 0:
                         if not self.online and selected == 4:
                             selected = 1
                         else:
                             selected -= 1
-                    elif event.key == self.controls["down"] and selected < 4:
+                    elif event.key == self.config.controls["down"] and selected < 4:
                         if selected < 1 or self.online:
                             selected += 1
                         elif selected == 1 and not self.online:
                             selected = 4
 
-                    elif event.key == self.controls["enter"]:
+                    elif event.key == self.config.controls["enter"]:
                         if selected == 0:
                             self.single_player()
                         elif selected == 1:
@@ -296,12 +292,12 @@ class Game:
         """game over screen"""
         # save score
         if original_mode == "single":
-            name = self.player_name
+            name = self.config.name
             score = score1
             mode = "single"
         elif original_mode in ("local_multi", "online_multi"):
             if name1 == name2 == None:
-                name = self.player_name
+                name = self.config.name
             else:
                 f"{name1[:4]}. & {name2[:4]}."
             score = score1 + score2
@@ -326,7 +322,7 @@ class Game:
         score2_obj.x = self.width / 2 - score2_obj.width / 2
         score2_obj.y = self.height / 4 + score2_obj.height
 
-        spaceship = Image(f"spaceship{self.player_style}")
+        spaceship = Image(f"spaceship{self.config.style}")
         spaceship.x = self.width / 2 - spaceship.width / 2
         spaceship.y = self.height / 2 - spaceship.height / 2 - 20
 
@@ -357,11 +353,11 @@ class Game:
                     self.exit()
 
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == self.controls["up"] and selected > 0:
+                    if event.key == self.config.controls["up"] and selected > 0:
                         selected -= 1
-                    if event.key == self.controls["down"] and selected < 2:
+                    if event.key == self.config.controls["down"] and selected < 2:
                         selected += 1
-                    if event.key == self.controls["enter"]:
+                    if event.key == self.config.controls["enter"]:
                         if selected == 0:
                             if original_mode == "single":
                                 self.single_player()
@@ -415,7 +411,7 @@ class Game:
     def single_player(self) -> None:
         """single player game mode"""
         engine = SingleEngine()
-        engine.player.change_style(self.player_style)
+        engine.player.change_style(self.config.style)
 
         highscore = self.data.get_high_score("single")
 
@@ -446,21 +442,21 @@ class Game:
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         self.menu()
-                    elif event.key == self.controls["left"]:
+                    elif event.key == self.config.controls["left"]:
                         engine.change_direction("left")
-                    elif event.key == self.controls["right"]:
+                    elif event.key == self.config.controls["right"]:
                         engine.change_direction("right")
-                    elif event.key == self.controls["shoot"]:
+                    elif event.key == self.config.controls["shoot"]:
                         engine.shoot_laser()
 
                 elif event.type == pygame.KEYUP:
                     if (
-                        event.key == self.controls["left"]
+                        event.key == self.config.controls["left"]
                         and player.direction == "left"
                     ):
                         engine.change_direction("")
                     elif (
-                        event.key == self.controls["right"]
+                        event.key == self.config.controls["right"]
                         and player.direction == "right"
                     ):
                         engine.change_direction("")
@@ -645,21 +641,21 @@ class Game:
                             self.server.close()
                         self.client.disconnect()
                         self.menu()
-                    elif event.key == self.controls["left"]:
+                    elif event.key == self.config.controls["left"]:
                         request += "direction:left|"
-                    elif event.key == self.controls["right"]:
+                    elif event.key == self.config.controls["right"]:
                         request += "direction:right|"
-                    elif event.key == self.controls["shoot"]:
+                    elif event.key == self.config.controls["shoot"]:
                         request += "shoot|"
 
                 elif event.type == pygame.KEYUP:
                     if (
-                        event.key == self.controls["left"]
+                        event.key == self.config.controls["left"]
                         and player["direction"] == "left"
                     ):
                         request += "direction:|"
                     elif (
-                        event.key == self.controls["right"]
+                        event.key == self.config.controls["right"]
                         and player["direction"] == "right"
                     ):
                         request += "direction:|"
@@ -771,7 +767,7 @@ class Game:
             pygame.display.update()
 
     def settings(self) -> None:
-        """add the possibility to change name, style and controls"""
+        """add the possibility to change name, style and config.controls"""
         # align objects from the right
         settings_obj = Text("SETTINGS", BLUE)
         settings_obj.x = self.width / 2 - settings_obj.width / 2
@@ -781,7 +777,7 @@ class Game:
         name_obj.x = self.width / 2 - name_obj.width
         name_obj.y = self.height / 10 * 2.25
 
-        name_input = Text(self.player_name, WHITE)
+        name_input = Text(self.config.name, WHITE)
         name_input.x = self.width / 2 + 25
         name_input.y = self.height / 10 * 2.25
 
@@ -851,41 +847,41 @@ class Game:
                         self.menu()
 
                     elif not changing:
-                        if event.key == self.controls["enter"] and selected != 1:
+                        if event.key == self.config.controls["enter"] and selected != 1:
                             changing = True
-                        elif event.key == self.controls["up"] and selected > 0:
+                        elif event.key == self.config.controls["up"] and selected > 0:
                             selected -= 1
-                        elif event.key == self.controls["down"] and selected < 6:
+                        elif event.key == self.config.controls["down"] and selected < 6:
                             selected += 1
                         elif selected == 1:
-                            if event.key == self.controls["left"]:
-                                self.player_style = (self.player_style - 1) % 6
-                            elif event.key == self.controls["right"]:
-                                self.player_style = (self.player_style + 1) % 6
+                            if event.key == self.config.controls["left"]:
+                                self.config.style = (self.config.style - 1) % 6
+                            elif event.key == self.config.controls["right"]:
+                                self.config.style = (self.config.style + 1) % 6
 
                     elif changing:
                         if selected == 0:
                             if (
-                                event.key == self.controls["enter"]
-                                and self.player_name != ""
+                                event.key == self.config.controls["enter"]
+                                and self.config.name != ""
                             ):
                                 changing = False
                             elif event.key == pygame.K_BACKSPACE:
-                                self.player_name = self.player_name[:-1]
-                            elif event.unicode.isalnum() and len(self.player_name) < 16:
-                                self.player_name += event.unicode.upper()
+                                self.config.name = self.config.name[:-1]
+                            elif event.unicode.isalnum() and len(self.config.name) < 16:
+                                self.config.name += event.unicode.upper()
 
-                        elif event.key not in self.controls.values():
+                        elif event.key not in self.config.controls.values():
                             if selected == 2:
-                                self.controls["shoot"] = event.key
+                                self.config.controls["shoot"] = event.key
                             elif selected == 3:
-                                self.controls["left"] = event.key
+                                self.config.controls["left"] = event.key
                             elif selected == 4:
-                                self.controls["right"] = event.key
+                                self.config.controls["right"] = event.key
                             elif selected == 5:
-                                self.controls["up"] = event.key
+                                self.config.controls["up"] = event.key
                             elif selected == 6:
-                                self.controls["down"] = event.key
+                                self.config.controls["down"] = event.key
                             changing = False
 
             # updates
@@ -893,20 +889,24 @@ class Game:
 
             self.background.update(dt)
 
-            style_example = Image(f"spaceship{self.player_style}")
+            style_example = Image(f"spaceship{self.config.style}")
             style_example.x = self.width / 2 + 25
             style_example.y = self.height / 10 * 3.10 - 13
 
             name_input.change_text(
-                self.player_name
+                self.config.name
                 + ("_" if changing and selected == 0 and time() % 1 > 0.5 else "")
             )
             name_input.change_color(GREEN if changing and selected == 0 else WHITE)
-            shoot_key.change_text(pygame.key.name(self.controls["shoot"]).upper())
-            left_key.change_text(pygame.key.name(self.controls["left"]).upper())
-            right_key.change_text(pygame.key.name(self.controls["right"]).upper())
-            up_key.change_text(pygame.key.name(self.controls["up"]).upper())
-            down_key.change_text(pygame.key.name(self.controls["down"]).upper())
+            shoot_key.change_text(
+                pygame.key.name(self.config.controls["shoot"]).upper()
+            )
+            left_key.change_text(pygame.key.name(self.config.controls["left"]).upper())
+            right_key.change_text(
+                pygame.key.name(self.config.controls["right"]).upper()
+            )
+            up_key.change_text(pygame.key.name(self.config.controls["up"]).upper())
+            down_key.change_text(pygame.key.name(self.config.controls["down"]).upper())
 
             name_obj.change_color(RED if selected == 0 else WHITE)
             style_obj.change_color(RED if selected == 1 else WHITE)
@@ -1029,7 +1029,7 @@ class Game:
                 self.error_screen("CONNECTION UNAVAILABLE", "menu")
 
         # connect client
-        self.client.connect(self.server.ip, self.player_name, self.player_style)
+        self.client.connect(self.server.ip, self.config.name, self.config.style)
         # load game
         self.online_multi_player()
 
@@ -1094,7 +1094,7 @@ class Game:
                         connecting_since = time()
                         start_new_thread(
                             self.client.connect,
-                            (input_ip, self.player_name, self.player_style),
+                            (input_ip, self.config.name, self.config.style),
                         )
 
             # updates
