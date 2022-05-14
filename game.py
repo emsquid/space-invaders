@@ -145,7 +145,7 @@ class Game:
                     elif event.key == pygame.K_BACKSPACE:
                         self.config.name = self.config.name[:-1]
 
-                    elif event.unicode.isalnum() and len(self.config.name) < 16:
+                    elif event.unicode.isalnum() and len(self.config.name) < 10:
                         self.config.name += event.unicode.upper()
 
             # updates
@@ -167,15 +167,15 @@ class Game:
         title_obj.x = self.width / 2 - title_obj.width / 2
         title_obj.y = self.height / 4 - title_obj.height / 2.5
 
-        single_obj = Text("SINGLE PLAYER", WHITE)
+        single_obj = Text("SINGLE-PLAYER", WHITE)
         single_obj.x = self.width / 2 - single_obj.width / 2
         single_obj.y = self.height * 0.75 - single_obj.height * 4
 
-        local_obj = Text("LOCAL MULTI", WHITE)
+        local_obj = Text("MULTI-PLAYER", WHITE)
         local_obj.x = self.width / 2 - local_obj.width / 2
         local_obj.y = self.height * 0.75 - local_obj.height * 2.5
 
-        online_obj = Text("ONLINE MULTI", WHITE)
+        online_obj = Text("LOCAL-MULTI", WHITE)
         online_obj.x = self.width / 2 - online_obj.width / 2
         online_obj.y = self.height * 0.75 - online_obj.height
 
@@ -223,7 +223,7 @@ class Game:
                         if selected == 0:
                             self.single_player()
                         elif selected == 1:
-                            self.local_multi_player()
+                            self.multi_player()
                         elif selected == 2:
                             self.host_or_join()
                         elif selected == 3:
@@ -295,7 +295,7 @@ class Game:
             name = self.config.name
             score = score1
             mode = "single"
-        elif original_mode in ("local_multi", "online_multi"):
+        elif original_mode in ("multi", "local_multi"):
             if name1 == name2 == None:
                 name = self.config.name
             else:
@@ -361,9 +361,9 @@ class Game:
                         if selected == 0:
                             if original_mode == "single":
                                 self.single_player()
+                            elif original_mode == "multi":
+                                self.multi_player()
                             elif original_mode == "local_multi":
-                                self.local_multi_player()
-                            elif original_mode == "online_multi":
                                 if self.server.running:
                                     self.host()
                                 else:
@@ -488,8 +488,8 @@ class Game:
 
             pygame.display.update()
 
-    def local_multi_player(self) -> None:
-        """local multiplayer game mode, the two players play on the same window"""
+    def multi_player(self) -> None:
+        """multiplayer game mode, the two players play on the same window"""
         engine = MultiEngine()
         engine.players[1].change_style(1)
 
@@ -515,7 +515,7 @@ class Game:
                 self.game_over(
                     score1=player1.score,
                     score2=player2.score,
-                    original_mode="local_multi",
+                    original_mode="multi",
                 )
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -580,8 +580,8 @@ class Game:
 
             pygame.display.update()
 
-    def online_multi_player(self) -> None:
-        """online multiplayer game mode, the two players can play on different screens/windows"""
+    def local_multi_player(self) -> None:
+        """local multiplayer game mode, the two players can play on different screens/windows"""
         if not self.client.connected:
             self.error_screen("YOU ARE NOT CONNECTED", "menu")
         else:
@@ -625,7 +625,7 @@ class Game:
                 self.game_over(
                     score1=player["score"] if playerId == 0 else other["score"],
                     score2=other["score"] if playerId == 0 else player["score"],
-                    original_mode="online_multi",
+                    original_mode="local_multi",
                     name1=name1,
                     name2=name2,
                 )
@@ -868,7 +868,7 @@ class Game:
                                 changing = False
                             elif event.key == pygame.K_BACKSPACE:
                                 self.config.name = self.config.name[:-1]
-                            elif event.unicode.isalnum() and len(self.config.name) < 16:
+                            elif event.unicode.isalnum() and len(self.config.name) < 10:
                                 self.config.name += event.unicode.upper()
 
                         elif event.key not in self.config.controls.values():
@@ -1031,7 +1031,7 @@ class Game:
         # connect client
         self.client.connect(self.server.ip, self.config.name, self.config.style)
         # load game
-        self.online_multi_player()
+        self.local_multi_player()
 
     def join(self) -> None:
         """connection screen for online multiplayer mode"""
@@ -1131,7 +1131,7 @@ class Game:
         # save ip
         self.last_ip = input_ip
         # load game
-        self.online_multi_player()
+        self.local_multi_player()
 
     def waiting_screen(self) -> None:
         """waiting screen for online multiplayer mode"""
@@ -1228,9 +1228,9 @@ class Game:
                         self.menu()
                     elif redirect == "single":
                         self.single_player()
+                    elif redirect == "multi":
+                        self.multi_player()
                     elif redirect == "local_multi":
-                        self.local_multi_player()
-                    elif redirect == "online_multi":
                         self.host_or_join()
                     elif redirect == "settings":
                         self.settings()
